@@ -1,0 +1,5 @@
+[
+  { "nombre": "PLA", "precio": 5 },
+  { "nombre": "PETG", "precio": 7 },
+  { "nombre": "ABS", "precio": 8 }
+]
