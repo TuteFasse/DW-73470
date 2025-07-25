@@ -1,101 +1,91 @@
-// Constantes y variables
-const precioPorHora = 500;
-const precioPorGramo = {
-  PLA: 5,
-  PETG: 7,
-  ABS: 8,
-};
+const form = document.getElementById("formularioPresupuesto");
+const historialLista = document.getElementById("historial");
+const resultadoDiv = document.getElementById("resultadoPresupuesto");
+const limpiarBtn = document.getElementById("limpiarHistorial");
+const selectMaterial = document.getElementById("material");
 
-let presupuestos = [];
+let materiales = [];
 
-// Referencias DOM
-const form = document.getElementById("presupuestoForm");
-const resultadoDiv = document.getElementById("resultado");
-const historialDiv = document.getElementById("historial");
-const btnVerHistorial = document.getElementById("verHistorial");
-const btnLimpiarHistorial = document.getElementById("limpiarHistorial");
+fetch("../data/materiales.json")
+  .then((res) => res.json())
+  .then((data) => {
+    materiales = data;
+    cargarOpcionesMaterial();
+  })
+  .catch(() => {
+    Swal.fire("Error", "No se pudieron cargar los materiales", "error");
+  });
 
-// Funciones
-function calcularPresupuesto(material, horas, peso, acabado) {
-  let costoMaterial = (precioPorGramo[material] || 0) * peso;
-  let costoBase = horas * precioPorHora;
-  let costoTotal = costoBase + costoMaterial;
-
-  if (acabado) {
-    costoTotal *= 1.2;
-  }
-
-  return costoTotal;
-}
-
-function mostrarResultado(p) {
-  resultadoDiv.textContent = `Presupuesto calculado:\n
-Material: ${p.material}
-Horas: ${p.horas}
-Peso: ${p.peso} g
-Acabado premium: ${p.acabado ? "Sí" : "No"}
-Total: $${p.total.toFixed(2)}`;
-}
-
-function guardarPresupuesto(presupuesto) {
-  presupuestos.push(presupuesto);
-  localStorage.setItem("presupuestos", JSON.stringify(presupuestos));
-}
-
-function cargarPresupuestos() {
-  const datos = localStorage.getItem("presupuestos");
-  if (datos) {
-    presupuestos = JSON.parse(datos);
-  }
-}
-
-function mostrarHistorial() {
-  if (presupuestos.length === 0) {
-    historialDiv.textContent = "No hay presupuestos guardados.";
-    return;
-  }
-  historialDiv.textContent = "Historial de presupuestos:\n\n";
-  presupuestos.forEach((p, i) => {
-    historialDiv.textContent += `#${i + 1} - Material: ${p.material}, Horas: ${p.horas}, Peso: ${p.peso}g, Acabado: ${p.acabado ? "Sí" : "No"}, Total: $${p.total.toFixed(2)}\n`;
+function cargarOpcionesMaterial() {
+  selectMaterial.innerHTML = '<option value="">Seleccioná un material</option>';
+  materiales.forEach((mat) => {
+    const option = document.createElement("option");
+    option.value = mat.nombre;
+    option.textContent = `${mat.nombre} - $${mat.precio} x gr`;
+    selectMaterial.appendChild(option);
   });
 }
 
-function limpiarHistorial() {
-  localStorage.removeItem("presupuestos");
-  presupuestos = [];
-  historialDiv.textContent = "Historial eliminado.";
+function calcularPresupuesto(nombre, material, peso) {
+  const mat = materiales.find((m) => m.nombre === material);
+  return mat ? peso * mat.precio : 0;
 }
 
-// Eventos
+function guardarEnHistorial(item) {
+  let historial = JSON.parse(localStorage.getItem("historial")) || [];
+  historial.push(item);
+  localStorage.setItem("historial", JSON.stringify(historial));
+}
+
+function mostrarHistorial() {
+  historialLista.innerHTML = "";
+  const historial = JSON.parse(localStorage.getItem("historial")) || [];
+
+  historial.forEach((item, i) => {
+    const li = document.createElement("li");
+    li.classList.add("list-group-item");
+    li.textContent = `${item.nombre} (${item.material}) - ${item.peso}gr - $${item.total}`;
+    historialLista.appendChild(li);
+  });
+}
+
 form.addEventListener("submit", (e) => {
   e.preventDefault();
 
-  const material = form.material.value;
-  const horas = parseFloat(form.horas.value);
-  const peso = parseFloat(form.peso.value);
-  const acabado = form.acabado.checked;
+  const nombre = document.getElementById("nombrePieza").value;
+  const material = selectMaterial.value;
+  const peso = parseFloat(document.getElementById("peso").value);
 
-  if (!material || isNaN(horas) || horas <= 0 || isNaN(peso) || peso <= 0) {
-    resultadoDiv.textContent = "Por favor ingresa datos válidos.";
+  if (!material || isNaN(peso) || peso <= 0) {
+    Swal.fire("Error", "Completá todos los campos correctamente", "warning");
     return;
   }
 
-  const total = calcularPresupuesto(material, horas, peso, acabado);
+  const total = calcularPresupuesto(nombre, material, peso);
+  resultadoDiv.textContent = `El presupuesto para "${nombre}" es $${total}`;
 
-  const nuevoPresupuesto = {
-    material,
-    horas,
-    peso,
-    acabado,
-    total,
-  };
-
-  mostrarResultado(nuevoPresupuesto);
-  guardarPresupuesto(nuevoPresupuesto);
+  const item = { nombre, material, peso, total };
+  guardarEnHistorial(item);
+  mostrarHistorial();
+  form.reset();
 });
 
-btnVerHistorial.addEventListener("click", mostrarHistorial);
-btnLimpiarHistorial.addEventListener("click", limpiarHistorial);
+limpiarBtn.addEventListener("click", () => {
+  Swal.fire({
+    title: "¿Estás seguro?",
+    text: "Se eliminará el historial guardado.",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Sí, eliminar",
+    cancelButtonText: "Cancelar",
+  }).then((result) => {
+    if (result.isConfirmed) {
+      localStorage.removeItem("historial");
+      mostrarHistorial();
+      resultadoDiv.textContent = "";
+      Swal.fire("Eliminado", "El historial fue eliminado", "success");
+    }
+  });
+});
 
-// Inicialización
-cargarPresupuestos();
+document.addEventListener("DOMContentLoaded", mostrarHistorial);
